@@ -1,105 +1,95 @@
 const fs = require('fs');
 
-// Helper function to decode y values from different bases
-function decodeValue(base, value) {
+// Function to decode a value from a given base
+function decodeValue(value, base) {
     return parseInt(value, base);
 }
 
-// Helper function to create the matrix for the system of equations
-function createMatrix(points, degree) {
-    const A = [];
-    const Y = [];
-
-    for (let i = 0; i < points.length; i++) {
-        let x = points[i][0];
-        let row = [];
-        
-        // Fill the row with x^m, x^(m-1), ..., x^1, 1 (for the constant term)
-        for (let j = degree; j >= 0; j--) {
-            row.push(Math.pow(x, j));
-        }
-
-        A.push(row); // Add row to matrix A
-        Y.push(points[i][1]); // Add corresponding y value to vector Y
-    }
-
-    return { A, Y };
-}
-
-// Gaussian elimination to solve AX = Y
-function gaussianElimination(A, Y) {
-    const n = A.length;
+// Function to calculate the coefficients of the polynomial using Lagrange interpolation
+function calculateCoefficients(points) {
+    const n = points.length;
+    let coefficients = new Array(n).fill(0);
 
     for (let i = 0; i < n; i++) {
-        // Partial pivoting
-        let max = i;
-        for (let j = i + 1; j < n; j++) {
-            if (Math.abs(A[j][i]) > Math.abs(A[max][i])) {
-                max = j;
+        let xi = points[i][0];
+        let yi = points[i][1];
+        let product = 1;
+
+        for (let j = 0; j < n; j++) {
+            if (i !== j) {
+                product *= (xi - points[j][0]);
             }
         }
 
-        // Swap rows in A and Y
-        [A[i], A[max]] = [A[max], A[i]];
-        [Y[i], Y[max]] = [Y[max], Y[i]];
+        let lagrangeBasis = yi / product;
 
-        // Normalize row i
-        for (let j = i + 1; j < n; j++) {
-            let factor = A[j][i] / A[i][i];
-            for (let k = i; k < n; k++) {
-                A[j][k] -= factor * A[i][k];
+        for (let j = 0; j < n; j++) {
+            if (i !== j) {
+                let factor = 1;
+                for (let k = 0; k < n; k++) {
+                    if (k !== i && k !== j) {
+                        factor *= (points[j][0] - points[k][0]);
+                    }
+                }
+                coefficients[j] += lagrangeBasis * factor;
             }
-            Y[j] -= factor * Y[i];
         }
+        coefficients[i] += lagrangeBasis;
     }
 
-    // Back substitution
-    const X = new Array(n).fill(0);
-    for (let i = n - 1; i >= 0; i--) {
-        let sum = 0;
-        for (let j = i + 1; j < n; j++) {
-            sum += A[i][j] * X[j];
-        }
-        X[i] = (Y[i] - sum) / A[i][i];
-    }
-
-    return X;
+    return coefficients;
 }
 
-// Main function to parse input, decode, and solve for the constant term
-function findConstantTerm(inputFile) {
-    // Read and parse JSON file
-    const rawData = fs.readFileSync(inputFile);
-    const inputData = JSON.parse(rawData);
+// Function to find the constant term of the polynomial (c)
+function findConstantTerm(points) {
+    let coefficients = calculateCoefficients(points);
+    return coefficients[0]; // The constant term c is the first coefficient
+}
 
-    // Extract keys
-    const n = inputData['keys']['n'];
-    const k = inputData['keys']['k'];
+// Function to read JSON file and return parsed data
+function readJsonFile(filename) {
+    const data = fs.readFileSync(filename);
+    return JSON.parse(data);
+}
 
-    // Store the points (x, y) after decoding
-    let points = [];
+// Main function to handle the overall logic
+function main() {
+    // Read the first JSON file
+    const data1 = readJsonFile('input.json');
+    const points1 = [];
 
-    for (let i = 1; i <= n; i++) {
-        if (inputData[i]) {
-            let x = parseInt(i);
-            let base = parseInt(inputData[i]['base']);
-            let yEncoded = inputData[i]['value'];
-            let yDecoded = decodeValue(base, yEncoded);
-            points.push([x, yDecoded]);
+    // Decode the first set of points
+    for (let i = 1; i <= data1.keys.n; i++) {
+        if (data1[i]) {
+            const base = parseInt(data1[i].base);
+            const value = data1[i].value;
+            const y = decodeValue(value, base);
+            points1.push([i, y]); // Push (x, y) points
         }
     }
 
-    // Degree of the polynomial is k-1
-    const degree = k - 1;
-    const { A, Y } = createMatrix(points.slice(0, k), degree);
+    // Calculate constant term for the first set
+    const c1 = findConstantTerm(points1);
+    console.log(`The constant term (c) from the first file is: ${c1}`);
 
-    // Solve for the coefficients using Gaussian elimination
-    const coefficients = gaussianElimination(A, Y);
+    // Read the second JSON file
+    const data2 = readJsonFile('input2.json');
+    const points2 = [];
 
-    // The constant term is the last coefficient (c)
-    const constantTerm = coefficients[coefficients.length - 1];
-    console.log("The constant term (c) is:", constantTerm);
+    // Decode the second set of points
+    for (let i = 1; i <= data2.keys.n; i++) {
+        if (data2[i]) {
+            const base = parseInt(data2[i].base);
+            const value = data2[i].value;
+            const y = decodeValue(value, base);
+            points2.push([i, y]); // Push (x, y) points
+        }
+    }
+
+    // Calculate constant term for the second set
+    const c2 = findConstantTerm(points2);
+    console.log(`The constant term (c) from the second file is: ${c2}`);
 }
 
-// Call the function with the input JSON file
-findConstantTerm('input.json');
+// Run the main function
+main();
